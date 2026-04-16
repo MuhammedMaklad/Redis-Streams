@@ -1,0 +1,80 @@
+services:
+  redis-master:
+    image: redis:7.0-alpine
+    container_name: redis-master
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - ./configuration/Redis/redis-master.conf:/usr/local/etc/redis/redis.conf
+    ports:
+      - "6379:6379"
+    networks:
+      - redis-net
+
+  redis-replica:
+    image: redis:7.0-alpine
+    container_name: redis-replica
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - ./configuration/Redis/redis-replica.conf:/usr/local/etc/redis/redis.conf
+    depends_on:
+      - redis-master
+    networks:
+      - redis-net
+
+  redis-sentinel-1:
+    image: redis:7.0-alpine
+    container_name: redis-sentinel-1
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    volumes:
+      - ./configuration/Redis/redis-sentinel.conf:/usr/local/etc/redis/sentinel.conf
+    depends_on:
+      - redis-master
+      - redis-replica
+    networks:
+      - redis-net
+
+  redis-sentinel-2:
+    image: redis:7.0-alpine
+    container_name: redis-sentinel-2
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    volumes:
+      - ./configuration/Redis/redis-sentinel.conf:/usr/local/etc/redis/sentinel.conf
+    depends_on:
+      - redis-master
+      - redis-replica
+    networks:
+      - redis-net
+
+  redis-sentinel-3:
+    image: redis:7.0-alpine
+    container_name: redis-sentinel-3
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    volumes:
+      - ./configuration/Redis/redis-sentinel.conf:/usr/local/etc/redis/sentinel.conf
+    depends_on:
+      - redis-master
+      - redis-replica
+    networks:
+      - redis-net
+
+  order-service:
+    build:
+      context: ./services/order-service
+      dockerfile: Dockerfile
+    container_name: order-service
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - REDIS_SENTINEL_HOSTS=redis-sentinel-1:26379,redis-sentinel-2:26379,redis-sentinel-3:26379
+      - REDIS_MASTER_NAME=mymaster
+    depends_on:
+      - redis-sentinel-1
+      - redis-sentinel-2
+      - redis-sentinel-3
+    networks:
+      - redis-net
+
+networks:
+  redis-net:
+    driver: bridge
