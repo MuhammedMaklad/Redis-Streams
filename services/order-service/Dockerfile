@@ -4,12 +4,14 @@ WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm install
+RUN npm install && npm install -g nodemon ts-node
 
 COPY . .
 
-RUN npm install -g ts-node typescript
+# No need to install global ts-node if it's in node_modules
+# but we'll keep it for simplicity if needed for CLI use
 
 EXPOSE 3000
 
-CMD ["npx", "ts-node", "src/index.ts"]
+# CMD ["npm", "start"]
+CMD [ "npm", "run", "dev" ]

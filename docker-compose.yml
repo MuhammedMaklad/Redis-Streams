@@ -1,61 +1,115 @@
+x-redis-healthcheck: &redis-healthcheck
+  test: ["CMD", "redis-cli", "-p", "6379", "ping"]
+  interval: 5s
+  timeout: 3s
+  retries: 5
+  start_period: 5s
+
+x-sentinel-healthcheck: &sentinel-healthcheck
+  test: ["CMD", "redis-cli", "-p", "26379", "ping"]
+  interval: 5s
+  timeout: 5s
+  retries: 10
+  start_period: 15s
+
 services:
   redis-master:
     image: redis:7.0-alpine
     container_name: redis-master
+    hostname: redis-master
     command: redis-server /usr/local/etc/redis/redis.conf
     volumes:
-      - ./configuration/Redis/redis-master.conf:/usr/local/etc/redis/redis.conf
+      - ./configuration/Redis/redis-master.conf:/usr/local/etc/redis/redis.conf:ro
+      - redis-master-data:/data
     ports:
       - "6379:6379"
     networks:
-      - redis-net
+      redis-net:
+        ipv4_address: 172.28.0.10
+    healthcheck: *redis-healthcheck
+    # No restart policy — after failover this becomes a replica,
+    # auto-restarting it as "master" would split-brain the cluster
+    restart: "no"
 
   redis-replica:
     image: redis:7.0-alpine
     container_name: redis-replica
+    hostname: redis-replica
     command: redis-server /usr/local/etc/redis/redis.conf
     volumes:
-      - ./configuration/Redis/redis-replica.conf:/usr/local/etc/redis/redis.conf
+      - ./configuration/Redis/redis-replica.conf:/usr/local/etc/redis/redis.conf:ro
+      - redis-replica-data:/data
     depends_on:
-      - redis-master
+      redis-master:
+        condition: service_healthy
     networks:
-      - redis-net
+      redis-net:
+        ipv4_address: 172.28.0.11
+    healthcheck: *redis-healthcheck
+    restart: unless-stopped
 
   redis-sentinel-1:
     image: redis:7.0-alpine
     container_name: redis-sentinel-1
-    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    hostname: redis-sentinel-1
+    command: >
+      sh -c "cp -f /tmp/sentinel-source.conf /data/sentinel.conf &&
+             redis-sentinel /data/sentinel.conf"
     volumes:
-      - ./configuration/Redis/redis-sentinel.conf:/usr/local/etc/redis/sentinel.conf
+      - ./configuration/Redis/redis-sentinel.conf:/tmp/sentinel-source.conf:ro
+      - sentinel-1-data:/data
     depends_on:
-      - redis-master
-      - redis-replica
+      redis-master:
+        condition: service_healthy
+      redis-replica:
+        condition: service_healthy
     networks:
-      - redis-net
+      redis-net:
+        ipv4_address: 172.28.0.21
+    healthcheck: *sentinel-healthcheck
+    restart: unless-stopped
 
   redis-sentinel-2:
     image: redis:7.0-alpine
     container_name: redis-sentinel-2
-    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    hostname: redis-sentinel-2
+    command: >
+      sh -c "cp -f /tmp/sentinel-source.conf /data/sentinel.conf &&
+             redis-sentinel /data/sentinel.conf"
     volumes:
-      - ./configuration/Redis/redis-sentinel.conf:/usr/local/etc/redis/sentinel.conf
+      - ./configuration/Redis/redis-sentinel.conf:/tmp/sentinel-source.conf:ro
+      - sentinel-2-data:/data
     depends_on:
-      - redis-master
-      - redis-replica
+      redis-master:
+        condition: service_healthy
+      redis-replica:
+        condition: service_healthy
     networks:
-      - redis-net
+      redis-net:
+        ipv4_address: 172.28.0.22
+    healthcheck: *sentinel-healthcheck
+    restart: unless-stopped
 
   redis-sentinel-3:
     image: redis:7.0-alpine
     container_name: redis-sentinel-3
-    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    hostname: redis-sentinel-3
+    command: >
+      sh -c "cp -f /tmp/sentinel-source.conf /data/sentinel.conf &&
+             redis-sentinel /data/sentinel.conf"
     volumes:
-      - ./configuration/Redis/redis-sentinel.conf:/usr/local/etc/redis/sentinel.conf
+      - ./configuration/Redis/redis-sentinel.conf:/tmp/sentinel-source.conf:ro
+      - sentinel-3-data:/data
     depends_on:
-      - redis-master
-      - redis-replica
+      redis-master:
+        condition: service_healthy
+      redis-replica:
+        condition: service_healthy
     networks:
-      - redis-net
+      redis-net:
+        ipv4_address: 172.28.0.23
+    healthcheck: *sentinel-healthcheck
+    restart: unless-stopped
 
   order-service:
     build:
@@ -64,17 +118,35 @@ services:
     container_name: order-service
     ports:
       - "3000:3000"
+    volumes:
+      - ./services/order-service:/app
+      - /app/node_modules
     environment:
-      - PORT=3000
-      - REDIS_SENTINEL_HOSTS=redis-sentinel-1:26379,redis-sentinel-2:26379,redis-sentinel-3:26379
-      - REDIS_MASTER_NAME=mymaster
+      PORT: 3000
+      REDIS_SENTINEL_HOSTS: "redis-sentinel-1:26379,redis-sentinel-2:26379,redis-sentinel-3:26379"
+      REDIS_MASTER_NAME: mymaster
     depends_on:
-      - redis-sentinel-1
-      - redis-sentinel-2
-      - redis-sentinel-3
+      redis-sentinel-1:
+        condition: service_healthy
+      redis-sentinel-2:
+        condition: service_healthy
+      redis-sentinel-3:
+        condition: service_healthy
     networks:
-      - redis-net
+      redis-net:
+        ipv4_address: 172.28.0.30
+    restart: unless-stopped
+
+volumes:
+  redis-master-data:
+  redis-replica-data:
+  sentinel-1-data:
+  sentinel-2-data:
+  sentinel-3-data:
 
 networks:
   redis-net:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24

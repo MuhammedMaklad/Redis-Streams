@@ -1,15 +1,17 @@
-import app from "./server"
-import "./config/Redis/redis"
-import { logger } from "./config/Logger/pino"
+import app from "./server";
+import "./config/Redis/redis";
+import { logger } from "./config/Logger/pino";
 
-const port: number = (process.env.PORT ?? 3000) as number
+const port: number = (process.env.PORT ?? 3000) as number;
 
 // ============================================================================
 // SERVER STARTUP
 // ============================================================================
 const server = app.listen(port, () => {
-  logger.info(`Order Service is running on port ${port}\n URL: http://localhost:${port}/`)
-})
+  logger.info(
+    `Order Service is running on port ${port}\n URL: http://localhost:${port}/`,
+  );
+});
 
 // ============================================================================
 // GRACEFUL SHUTDOWN HANDLER
@@ -27,11 +29,11 @@ const server = app.listen(port, () => {
  * @param signal - The signal that triggered shutdown (SIGTERM, SIGINT, etc.)
  */
 const gracefulShutdown = (signal: string) => {
-  logger.info(`${signal} received: starting graceful shutdown`)
+  logger.info(`${signal} received: starting graceful shutdown`);
 
   // Stop accepting new connections
   server.close(() => {
-    logger.info("HTTP server closed - no longer accepting connections")
+    logger.info("HTTP server closed - no longer accepting connections");
 
     // ========================================================================
     // CLEANUP OPERATIONS
@@ -53,9 +55,9 @@ const gracefulShutdown = (signal: string) => {
      *    await logger.flush()
      */
 
-    logger.info("Cleanup completed - exiting process")
-    process.exit(0) // Exit with success code
-  })
+    logger.info("Cleanup completed - exiting process");
+    process.exit(0); // Exit with success code
+  });
 
   /**
    * Force shutdown timeout
@@ -64,10 +66,10 @@ const gracefulShutdown = (signal: string) => {
    * - 10 seconds is a reasonable timeout (adjust based on your app)
    */
   setTimeout(() => {
-    logger.error("Graceful shutdown timeout exceeded - forcing exit")
-    process.exit(1) // Exit with error code
-  }, 10000) // 10 seconds timeout
-}
+    logger.error("Graceful shutdown timeout exceeded - forcing exit");
+    process.exit(1); // Exit with error code
+  }, 10000); // 10 seconds timeout
+};
 
 // ============================================================================
 // SIGNAL HANDLERS
@@ -84,8 +86,8 @@ const gracefulShutdown = (signal: string) => {
  * Critical for: Container orchestration and cloud deployments
  */
 process.on("SIGTERM", () => {
-  gracefulShutdown("SIGTERM")
-})
+  gracefulShutdown("SIGTERM");
+});
 
 /**
  * SIGINT - Interrupt signal
@@ -97,8 +99,8 @@ process.on("SIGTERM", () => {
  * Critical for: Local development and manual intervention
  */
 process.on("SIGINT", () => {
-  gracefulShutdown("SIGINT")
-})
+  gracefulShutdown("SIGINT");
+});
 
 // ============================================================================
 // ERROR HANDLERS
@@ -126,14 +128,14 @@ process.on("uncaughtException", (error: Error) => {
     {
       err: error,
       stack: error.stack,
-      type: "uncaughtException"
+      type: "uncaughtException",
     },
-    "Uncaught exception detected - application state may be corrupted"
-  )
+    "Uncaught exception detected - application state may be corrupted",
+  );
 
   // Exit immediately - don't attempt cleanup as state is unknown
-  process.exit(1)
-})
+  process.exit(1);
+});
 
 /**
  * unhandledRejection - Promise rejections without .catch()
@@ -152,19 +154,22 @@ process.on("uncaughtException", (error: Error) => {
  * - Log the error with full context
  * - Exit and let orchestrator restart
  */
-process.on("unhandledRejection", (reason: unknown, promise: Promise<unknown>) => {
-  logger.error(
-    {
-      reason,
-      promise,
-      type: "unhandledRejection"
-    },
-    "Unhandled promise rejection detected"
-  )
+process.on(
+  "unhandledRejection",
+  (reason: unknown, promise: Promise<unknown>) => {
+    logger.error(
+      {
+        reason,
+        promise,
+        type: "unhandledRejection",
+      },
+      "Unhandled promise rejection detected",
+    );
 
-  // Exit to prevent undefined behavior
-  process.exit(1)
-})
+    // Exit to prevent undefined behavior
+    process.exit(1);
+  },
+);
 
 /**
  * warning - Node.js warnings (deprecations, max listeners, etc.)
@@ -183,11 +188,11 @@ process.on("warning", (warning: Error) => {
     {
       name: warning.name,
       message: warning.message,
-      stack: warning.stack
+      stack: warning.stack,
     },
-    "Node.js warning emitted"
-  )
-})
+    "Node.js warning emitted",
+  );
+});
 
 // ============================================================================
 // OPTIONAL: HEALTH CHECK ENDPOINT
@@ -218,10 +223,13 @@ process.on("warning", (warning: Error) => {
  * - Helps diagnose configuration issues
  * - Visible in container logs
  */
-logger.info({
-  nodeVersion: process.version,
-  platform: process.platform,
-  pid: process.pid,
-  memory: process.memoryUsage(),
-  env: process.env.NODE_ENV || "development"
-}, "Server startup diagnostics")
+logger.info(
+  {
+    nodeVersion: process.version,
+    platform: process.platform,
+    pid: process.pid,
+    memory: process.memoryUsage(),
+    env: process.env.NODE_ENV || "development",
+  },
+  "Server startup diagnostics",
+);
