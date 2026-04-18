@@ -137,6 +137,56 @@ services:
         ipv4_address: 172.28.0.30
     restart: unless-stopped
 
+  payment-service:
+    build:
+      context: ./services/payment-service
+      dockerfile: Dockerfile
+    container_name: payment-service
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./services/payment-service:/app
+      - /app/node_modules
+    environment:
+      PORT: 3001
+      REDIS_SENTINEL_HOSTS: "redis-sentinel-1:26379,redis-sentinel-2:26379,redis-sentinel-3:26379"
+      REDIS_MASTER_NAME: mymaster
+    depends_on:
+      redis-sentinel-1:
+        condition: service_healthy
+      redis-sentinel-2:
+        condition: service_healthy
+      redis-sentinel-3:
+        condition: service_healthy
+    networks:
+      redis-net:
+        ipv4_address: 172.28.0.31
+    restart: unless-stopped
+
+  payment-worker:
+    build:
+      context: ./services/payment-service
+      dockerfile: Dockerfile
+    container_name: payment-worker
+    command: npm run worker
+    volumes:
+      - ./services/payment-service:/app
+      - /app/node_modules
+    environment:
+      REDIS_SENTINEL_HOSTS: "redis-sentinel-1:26379,redis-sentinel-2:26379,redis-sentinel-3:26379"
+      REDIS_MASTER_NAME: mymaster
+    depends_on:
+      redis-sentinel-1:
+        condition: service_healthy
+      redis-sentinel-2:
+        condition: service_healthy
+      redis-sentinel-3:
+        condition: service_healthy
+    networks:
+      redis-net:
+        ipv4_address: 172.28.0.32
+    restart: unless-stopped
+
 volumes:
   redis-master-data:
   redis-replica-data:

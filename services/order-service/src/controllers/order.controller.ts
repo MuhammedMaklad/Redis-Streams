@@ -1,14 +1,18 @@
-import type { Request, Response, NextFunction } from "express";
-import type { ICreateOrderBody } from "../types/order.types";
-import { v4 as uuid } from 'uuid';
-import { redisService } from "../services/redis.services";
+import type { NextFunction, Request, Response } from "express";
 import status from "http-status";
+import { v4 as uuid } from "uuid";
 import { logger } from "../config/Logger/pino";
+import { redisService } from "../services/redis.services";
+import type { ICreateOrderBody } from "../types/order.types";
 
 /**
  * Handles the creation of a new order and publishes it to a Redis stream
  */
-const createOrder = async (req: Request<{}, {}, ICreateOrderBody>, res: Response, next: NextFunction) => {
+const createOrder = async (
+  req: Request<{}, {}, ICreateOrderBody>,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { userId, productId, amount } = req.body;
     const orderId = uuid();
@@ -18,26 +22,24 @@ const createOrder = async (req: Request<{}, {}, ICreateOrderBody>, res: Response
       user_id: userId,
       product_id: productId,
       amount: amount.toString(),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
     // Add order message to Redis Stream for downstream processing
-    const msgId = await redisService.addToStream('ORDER_STREAM', messageData);
+    const msgId = await redisService.addToStream("order:stream", messageData);
 
     return res.status(status.CREATED).json({
       success: true,
       message: "Order placed successfully",
       data: {
         orderId,
-        streamMessageId: msgId
-      }
+        streamMessageId: msgId,
+      },
     });
   } catch (error) {
     logger.error({ err: error }, "Order creation controller failed");
     next(error); // Pass to global error handler
   }
-}
+};
 
-export {
-  createOrder as Create
-}
+export { createOrder as Create };
